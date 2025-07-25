@@ -33,3 +33,13 @@ def plot_graph_amps(t, amps):
     plt.axvline(x=0, color='black', linestyle='-', linewidth=1)  
 
     plt.show()
+
+
+def plot_freqencies(frequencies, amplitudes):
+    plt.figure(figsize=(10, 6))
+    plt.plot(frequencies, amplitudes)
+    plt.xlabel("Frequency (Hz)")
+    plt.ylabel("Amplitude")
+    plt.title("Frequency Spectrum")
+    plt.grid()
+    plt.show()
