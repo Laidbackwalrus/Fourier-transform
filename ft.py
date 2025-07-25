@@ -1,32 +1,21 @@
 import numpy as np
-import matplotlib.pyplot as plt
+import plotting
 
 
 duration = 5
 samples = 1000
+winding_frequency = 2
 
 t = np.linspace(0, duration, 1000)
 
 wave1 = np.sin(2 * np.pi * t * 3)
 wave2 = np.sin(2 * np.pi * t * 2)
 
-plt.figure(figsize=(10, 6))
+wave3 = wave1 + wave2
 
-plt.subplot(2, 1, 1)
-plt.plot(t, wave1)
-plt.plot(t, wave2)
-plt.xlabel("Time (s)")
-plt.ylabel("Amplitude")
-plt.axhline(y=0, color='black', linestyle='-', linewidth=1)
-plt.ylim(-3,3)
+four = wave3 * np.exp(-2j * np.pi * t * winding_frequency)
 
+# plotting.plot_graph_2(t, wave1, wave2)
 
-plt.subplot(2, 1, 2)
-plt.plot(t, wave1 + wave2)
-plt.xlabel("Time (s)")
-plt.ylabel("Amplitude")
-plt.axhline(y=0, color='black', linestyle='-', linewidth=1)
-plt.ylim(-3,3)
+plotting.plot_graph_amps(four.real, four.imag)
 
-plt.tight_layout()
-plt.show()
