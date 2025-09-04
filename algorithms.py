@@ -7,7 +7,8 @@ class BasicFourierTransform:
         self.freq_resolution = freq_resolution
 
     def compute_transform(self, data, t):
-        winding_frequencies = np.arange(self.freq_range[0], self.freq_range[1], 0.05)  # Example range
+        
+        winding_frequencies = np.arange(self.freq_range[0], self.freq_range[1], 0.5)  # Example range
         integrals = [
             np.trapz(data * np.exp(-2j * np.pi * t * wf), t)
             for wf in winding_frequencies
