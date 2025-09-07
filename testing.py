@@ -12,6 +12,10 @@ try:
 except Exception:
     sd = None
 
+upper_limit = 370  # Hz
+lower_limit = 73     # Hz
+sample_rate = 44100  # Hz
+
 
 def interactive_live_test():
     print("Creating LiveAudioInput and starting buffering. Press Enter to stop.")
@@ -55,72 +59,15 @@ def interactive_live_test():
     print("Done.")
 
 
-def interactive_live_pitch_test():
-    """Run the LivePitchAnalyser interactively.
-
-    This will start the analyser's live loop which itself waits for Enter to stop.
-    Press Enter in the console to stop live analysis and return.
-    """
-    print("Creating LivePitchAnalyser and starting live analysis. Press Enter to stop.")
-    analyser = LivePitchAnalyser(frequency_range=(100.0, 2000.0), number_of_samples=4096)
-
+def test_live_pitch_analyser():
+    print("Creating LivePitchAnalyser and starting live analysis. Press Ctrl+C to stop.")
+    lp = LivePitchAnalyser(frequency_range=(lower_limit, upper_limit), number_of_samples=2^15)
     try:
-        analyser.live_analysis(poll_interval=0.2)
+        lp.run(poll_interval=0.2, run_once=False)
+    except KeyboardInterrupt:
+        print("Interrupted, stopping live analysis.")
     except Exception as e:
-        print("Live pitch analyser failed:", e)
-
+        print("Failed to run LivePitchAnalyser:", e)
 
 if __name__ == '__main__':
-    # CLI options: run interactive test (default) or automated tests
-    if len(sys.argv) > 1 and sys.argv[1] == 'test_live_pitch':
-        def test_live_pitch_analyser(runtime_seconds: float = 5.0):
-            """Start the LivePitchAnalyser for a short time and ensure it runs without error.
-
-            This test is non-interactive and does not perform audio playback. It will assert
-            that the live audio buffer has collected samples after the run.
-            """
-            sr = 44100
-            buffer_size = sr * 5  # keep a 5-second rolling buffer
-
-            # Import locally to keep the module import cheap at top-level
-            from pitch_analyser import LivePitchAnalyser
-
-            analyser = LivePitchAnalyser(frequency_range=(100.0, 2000.0), number_of_samples=4096)
-
-            # Start analyser in a thread to avoid blocking on input()
-            t = threading.Thread(target=lambda: analyser.live_analysis(poll_interval=0.2), daemon=True)
-            t.start()
-
-            # Let it run for runtime_seconds
-            time.sleep(runtime_seconds)
-
-            # Signal stop by sending an Enter to stdin is not possible here; instead, stop underlying audio
-            try:
-                analyser.audio_input.stop_buffering()
-            except Exception:
-                pass
-
-            # Give analyser a moment to finish
-            time.sleep(0.5)
-
-            # Check buffer
-            buf = analyser.audio_input.get_buffer()
-            print(f"Live buffer length after run: {len(buf)} samples")
-
-            if len(buf) == 0:
-                raise AssertionError("No audio captured during live test")
-
-            print("test_live_pitch_analyser: PASS")
-
-        try:
-            test_live_pitch_analyser()
-        except AssertionError as e:
-            print(e)
-            sys.exit(2)
-        except Exception as e:
-            print("Unexpected error:", e)
-            sys.exit(3)
-        else:
-            sys.exit(0)
-    else:
-        interactive_live_test()
+    test_live_pitch_analyser()
