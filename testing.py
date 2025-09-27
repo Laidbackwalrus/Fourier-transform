@@ -60,14 +60,25 @@ def interactive_live_test():
 
 
 def test_live_pitch_analyser():
-    print("Creating LivePitchAnalyser and starting live analysis. Press Ctrl+C to stop.")
-    lp = LivePitchAnalyser(frequency_range=(lower_limit, upper_limit), number_of_samples=2^15)
+    print("Creating LivePitchAnalyser and starting live analysis. Press Enter to stop.")
+    lp = LivePitchAnalyser(frequency_range=(lower_limit, upper_limit), number_of_samples=2**15)
+
     try:
         lp.run(poll_interval=0.2, run_once=False)
-    except KeyboardInterrupt:
-        print("Interrupted, stopping live analysis.")
     except Exception as e:
-        print("Failed to run LivePitchAnalyser:", e)
+        print("Failed to start LivePitchAnalyser:", e)
+        return
+
+    try:
+        input("Running live analysis. Press Enter to stop...\n")
+    except KeyboardInterrupt:
+        print("Interrupted by user, stopping live analysis.")
+    finally:
+        try:
+            lp.stop()
+        except Exception as e:
+            print("Failed to stop LivePitchAnalyser:", e)
+
 
 if __name__ == '__main__':
     test_live_pitch_analyser()

@@ -49,7 +49,6 @@ class LiveAudioInput(AudioInput):
 
     def _consumer(self):
         # drain queued blocks until stop_event is set and queue empty
-        collected = []
         while not (self._stop_event and self._stop_event.is_set() and (self._q is not None and self._q.empty())):
             try:
                 if self._q is None:
@@ -124,4 +123,6 @@ class LiveAudioInput(AudioInput):
     def is_buffering(self):
         return self._stream is not None
 
+    def get_sample_rate(self):
+        return self.sample_rate
 

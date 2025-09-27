@@ -43,37 +43,37 @@ class StaticPitchAnalyser(PitchAnalyser):
         print(f"Total time: {end_time - start_time:.4f} seconds")
 
 class LivePitchAnalyser(PitchAnalyser):
-    """Live pitch analyser that will operate on live audio input.
-
-    Currently `PitchAnalyser.live_analysis` is a stub; this subclass exists
-    so callers can explicitly choose a live analyser type.
-    """
-    def __init__(self, frequency_range, number_of_samples):
-        self.audio_input = LiveAudioInput()
+    def __init__(self, frequency_range, number_of_samples, algorithm=NumpyFFT):
+        self.audio_input = LiveAudioInput(buffer_size=number_of_samples)
+        self.sample_rate = self.audio_input.get_sample_rate()
         self.frequency_range = frequency_range
         self.number_of_samples = number_of_samples
+        self.algorithm = algorithm  # for testing, skip custom FFT and use numpy FFT
 
     def run(self, poll_interval: float = 0.1, run_once: bool = False):
-        audio = self.audio_input
+        # setup plotting
+        self.graph = plotting.FrequencyPlotter()
 
         try:
-            audio.start_buffering()
+            self.audio_input.start_buffering()
         except Exception as e:
             print("Failed to start live audio:", e)
             return
-        stop_event = threading.Event()
 
-        thread = threading.Thread(
+        # create instance-level stop event and worker thread so stop() can control them
+        if getattr(self, "_thread", None) and getattr(self, "_thread").is_alive():
+            print("Live analysis already running")
+            return
+
+        self._stop_event = threading.Event()
+        self._thread = threading.Thread(
             target=self._live_analysis,
-            args=(audio, stop_event, poll_interval, run_once),
+            args=(self.audio_input, self._stop_event, poll_interval, run_once),
             daemon=True,
         )
-        thread.start()
+        self._thread.start()
 
-        # worker thread will stop by itself when run_once=True or when you signal stop_event
-        thread.join(timeout=10.0)
-        audio.stop_buffering()
-
+        # note: do not join or stop buffering here — caller should call stop() when they want to finish
     def _live_analysis(self, audio, stop_event, poll_interval, run_once: bool = False):
         iterations = 0
         while not stop_event.is_set():
@@ -83,18 +83,66 @@ class LivePitchAnalyser(PitchAnalyser):
                 print("Error reading buffer:", e)
                 buf = np.array([])
 
-            if buf.size >= self.number_of_samples:
-                segment = buf[-self.number_of_samples:]
-                duration = self.number_of_samples / audio.sample_rate
+            if buf.size == self.number_of_samples:
+                duration = self.number_of_samples / self.sample_rate
                 t = np.linspace(0, duration, self.number_of_samples, endpoint=False)
-                ft = FastFourierTransform(self.number_of_samples, 44100, freq_range=self.frequency_range)
-                try:
-                    integrals, winding_frequencies = ft.compute_transform(segment, t)
-                    plotting.plot_freqencies(winding_frequencies, integrals)
-                except Exception as e:
-                    print("Live analysis error:", e)
+                
+                if self.algorithm == NumpyFFT:
+                    ft = NumpyFFT(self.number_of_samples, self.sample_rate)
+                    integrals, winding_frequencies = ft.compute_transform(buf, t)
+                else:
+                    ft = FastFourierTransform(self.number_of_samples, self.sample_rate)
+                    integrals, winding_frequencies = ft.compute_transform(buf, t)
+
+                winding_frequencies, integrals = self.takesubset(winding_frequencies, integrals, self.frequency_range)
+
+                self.graph.update(winding_frequencies, integrals)
+
 
             stop_event.wait(poll_interval)
-            iterations += 1
             if run_once and iterations >= 1:
                 break
+
+    def takesubset(self, x, y, range):
+        lb, ub = range
+        mask = (x >= lb) & (x <= ub)
+        return x[mask], y[mask]
+    
+    def stop(self, timeout: float = 5.0):
+        """
+        Stop the live analyser: signal the worker to exit, join the thread,
+        stop audio buffering and close the plot window.
+        """
+        # signal worker to stop
+        stop_event = getattr(self, "_stop_event", None)
+        if stop_event is None:
+            return
+
+        stop_event.set()
+
+        # join worker thread
+        thread = getattr(self, "_thread", None)
+        if thread is not None:
+            try:
+                thread.join(timeout=timeout)
+            except Exception as e:
+                print("Failed to join worker thread:", e)
+
+        # stop audio buffering
+        try:
+            if getattr(self, "audio_input", None) is not None:
+                self.audio_input.stop_buffering()
+        except Exception as e:
+            print("Failed to stop audio buffering:", e)
+
+        # close plotting window if present
+        try:
+            if getattr(self, "graph", None) is not None:
+                if hasattr(self.graph, "win"):
+                    self.graph.close()
+        except Exception as e:
+            print("Failed to close plot window:", e)
+
+        # clear internal handles
+        self._thread = None
+        self._stop_event = None
